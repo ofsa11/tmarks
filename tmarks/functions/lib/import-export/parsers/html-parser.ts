@@ -113,44 +113,99 @@ export class HtmlParser implements ImportParser {
 
   private parseBookmarks(content: string): ParsedBookmark[] {
     const bookmarks: ParsedBookmark[] = []
-    
-    // 使用正则表达式匹配书签条目
+
+    // 使用递归方式解析嵌套结构
+    this.parseBookmarksRecursive(content, [], bookmarks)
+
+    return bookmarks
+  }
+
+  private parseBookmarksRecursive(
+    content: string,
+    folderPath: string[],
+    bookmarks: ParsedBookmark[]
+  ): void {
+    // 匹配当前层级的文件夹和书签
+    const dlRegex = /<DL><p>([\s\S]*?)<\/DL>/gi
+    const h3Regex = /<DT><H3[^>]*>([^<]+)<\/H3>/gi
     const bookmarkRegex = /<DT><A\s+([^>]+)>([^<]*)<\/A>(?:\s*<DD>([^<\n]*?))?/gi
-    
-    let match
-    let currentFolder = ''
-    
-    // 首先提取文件夹信息
-    const folderRegex = /<DT><H3[^>]*>([^<]+)<\/H3>/gi
-    const folderMatches = content.matchAll(folderRegex)
-    const folders = Array.from(folderMatches).map(m => m[1].trim())
-    
-    // 解析书签
-    while ((match = bookmarkRegex.exec(content)) !== null) {
-      const [, attributes, title, description] = match
-      
-      // 解析属性
+
+    // 查找所有H3标签(文件夹)
+    let h3Match
+    const h3Positions: Array<{ name: string; index: number }> = []
+    while ((h3Match = h3Regex.exec(content)) !== null) {
+      h3Positions.push({
+        name: h3Match[1].trim(),
+        index: h3Match.index
+      })
+    }
+
+    // 查找所有DL标签(嵌套内容)
+    let dlMatch
+    const dlPositions: Array<{ content: string; index: number }> = []
+    while ((dlMatch = dlRegex.exec(content)) !== null) {
+      dlPositions.push({
+        content: dlMatch[1],
+        index: dlMatch.index
+      })
+    }
+
+    // 解析当前层级的书签
+    let bookmarkMatch
+    while ((bookmarkMatch = bookmarkRegex.exec(content)) !== null) {
+      const [, attributes, title, description] = bookmarkMatch
       const parsedAttrs = this.parseAttributes(attributes)
-      
+
       if (!parsedAttrs.href) continue
-      
-      // 确定当前文件夹
-      const bookmarkIndex = match.index!
-      currentFolder = this.findCurrentFolder(content, bookmarkIndex, folders)
-      
+
+      // 过滤分隔符链接和无效链接
+      if (this.isSeparatorLink(parsedAttrs.href, title)) continue
+
+      // 确定当前书签所属的文件夹
+      const bookmarkIndex = bookmarkMatch.index
+      let currentFolderPath = [...folderPath]
+
+      // 查找最近的H3标签
+      for (let i = h3Positions.length - 1; i >= 0; i--) {
+        if (h3Positions[i].index < bookmarkIndex) {
+          // 检查这个H3是否在当前层级(不在嵌套的DL中)
+          const isInNestedDL = dlPositions.some(dl =>
+            dl.index < h3Positions[i].index &&
+            dl.index + dl.content.length > bookmarkIndex
+          )
+
+          if (!isInNestedDL) {
+            currentFolderPath.push(h3Positions[i].name)
+            break
+          }
+        }
+      }
+
+      const folderStr = currentFolderPath.join('/')
+
       const bookmark: ParsedBookmark = {
         title: this.decodeHtml(title.trim()) || 'Untitled',
         url: this.decodeHtml(parsedAttrs.href),
         description: description ? this.decodeHtml(description.trim()) : undefined,
-        tags: this.parseTags(parsedAttrs.tags, currentFolder),
+        tags: this.parseTags(parsedAttrs.tags, folderStr),
         created_at: this.parseDate(parsedAttrs.add_date),
-        folder: currentFolder || undefined
+        folder: folderStr || undefined
       }
-      
+
       bookmarks.push(bookmark)
     }
-    
-    return bookmarks
+
+    // 递归处理嵌套的文件夹
+    for (let i = 0; i < h3Positions.length; i++) {
+      const h3 = h3Positions[i]
+
+      // 查找这个H3后面的DL
+      const nextDL = dlPositions.find(dl => dl.index > h3.index && dl.index < (h3Positions[i + 1]?.index || Infinity))
+
+      if (nextDL) {
+        this.parseBookmarksRecursive(nextDL.content, [...folderPath, h3.name], bookmarks)
+      }
+    }
   }
 
   private parseAttributes(attributeString: string): Record<string, string> {
@@ -168,19 +223,26 @@ export class HtmlParser implements ImportParser {
     return attrs
   }
 
-  private findCurrentFolder(content: string, bookmarkIndex: number, folders: string[]): string {
-    // 在书签位置之前查找最近的文件夹标题
-    const beforeBookmark = content.substring(0, bookmarkIndex)
-    const folderRegex = /<DT><H3[^>]*>([^<]+)<\/H3>/gi
-    
-    let lastFolder = ''
-    let match
-    
-    while ((match = folderRegex.exec(beforeBookmark)) !== null) {
-      lastFolder = match[1].trim()
-    }
-    
-    return lastFolder
+  /**
+   * 判断是否为分隔符链接
+   */
+  private isSeparatorLink(url: string, title: string): boolean {
+    // 检查URL是否为分隔符服务
+    if (url.includes('separator.mayastudios.com')) return true
+
+    // 检查标题是否为分隔符样式 (如: ─────────────)
+    if (/^[─\-—=_]{3,}$/.test(title.trim())) return true
+
+    // 检查是否为JavaScript伪协议
+    if (url.startsWith('javascript:')) return true
+
+    // 检查是否为data URI
+    if (url.startsWith('data:')) return true
+
+    // 检查是否为about:blank
+    if (url === 'about:blank' || url === 'about:') return true
+
+    return false
   }
 
   private parseTags(tagsString?: string, folder?: string): string[] {

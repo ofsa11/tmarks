@@ -119,7 +119,7 @@ export function PublicSharePage() {
   const allBookmarks = useMemo(() => shareQuery.data?.bookmarks || [], [shareQuery.data?.bookmarks])
 
   // 标签排序状态
-  const [tagSortBy, setTagSortBy] = useState<'usage' | 'name'>('usage')
+  const [tagSortBy, setTagSortBy] = useState<'usage' | 'name' | 'clicks'>('usage')
 
   // 标签选择防抖：延迟300ms更新实际标签筛选（优化性能）
   useEffect(() => {

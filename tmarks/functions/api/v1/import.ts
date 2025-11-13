@@ -16,6 +16,7 @@ import type {
 
 import { createHtmlParser } from '../../lib/import-export/parsers/html-parser'
 import { createJsonParser } from '../../lib/import-export/parsers/json-parser'
+import { createMarkdownParser } from '../../lib/import-export/parsers/markdown-parser'
 import { DEFAULT_IMPORT_OPTIONS } from '../../../shared/import-export-types'
 
 interface ImportRequest {
@@ -114,7 +115,11 @@ async function parseImportData(format: ImportFormat, content: string) {
     case 'html':
       const htmlParser = createHtmlParser()
       return await htmlParser.parse(content)
-    
+
+    case 'markdown':
+      const markdownParser = createMarkdownParser()
+      return await markdownParser.parse(content)
+
     case 'json':
     case 'tmarks':
       const jsonParser = createJsonParser()
@@ -133,12 +138,16 @@ async function validateImportData(format: ImportFormat, data: any) {
     case 'html':
       const htmlParser = createHtmlParser()
       return await htmlParser.validate(data)
-    
+
+    case 'markdown':
+      const markdownParser = createMarkdownParser()
+      return await markdownParser.validate(data)
+
     case 'json':
     case 'tmarks':
       const jsonParser = createJsonParser()
       return await jsonParser.validate(data)
-    
+
     default:
       return { valid: false, errors: [{ field: 'format', message: 'Unsupported format' }], warnings: [] }
   }
@@ -267,9 +276,12 @@ async function processBatch(
       if (bookmarkId) {
         result.created_bookmarks.push(bookmarkId)
 
-        // 关联标签
+        // 关联标签 - 如果没有标签,自动添加"未分类"标签
         if (bookmark.tags.length > 0) {
           await associateBookmarkTags(db, userId, bookmarkId, bookmark.tags)
+        } else {
+          // 无标签书签自动添加"未分类"标签
+          await ensureUncategorizedTag(db, userId, bookmarkId)
         }
 
         result.success++
@@ -408,6 +420,45 @@ async function associateBookmarkTags(
     } catch (error) {
       console.error('Failed to associate tag:', tag.name, error)
     }
+  }
+}
+
+/**
+ * 确保无标签书签有"未分类"标签
+ */
+async function ensureUncategorizedTag(
+  db: D1Database,
+  userId: string,
+  bookmarkId: string
+) {
+  const UNCATEGORIZED_TAG_NAME = '未分类'
+
+  try {
+    // 检查"未分类"标签是否存在
+    let uncategorizedTag = await db.prepare(
+      'SELECT id FROM tags WHERE user_id = ? AND name = ? AND deleted_at IS NULL'
+    ).bind(userId, UNCATEGORIZED_TAG_NAME).first<{ id: string }>()
+
+    // 如果不存在,创建"未分类"标签
+    if (!uncategorizedTag) {
+      const tagId = crypto.randomUUID()
+      await db.prepare(
+        `INSERT INTO tags (id, user_id, name, color, created_at, updated_at)
+         VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`
+      ).bind(tagId, userId, UNCATEGORIZED_TAG_NAME, '#9ca3af').run()
+
+      uncategorizedTag = { id: tagId }
+    }
+
+    // 关联书签和"未分类"标签
+    await db.prepare(
+      `INSERT OR IGNORE INTO bookmark_tags (bookmark_id, tag_id, user_id, created_at)
+       VALUES (?, ?, ?, datetime('now'))`
+    ).bind(bookmarkId, uncategorizedTag.id, userId).run()
+
+  } catch (error) {
+    console.error('Failed to add uncategorized tag:', error)
+    // 不抛出错误,允许书签创建成功
   }
 }
 

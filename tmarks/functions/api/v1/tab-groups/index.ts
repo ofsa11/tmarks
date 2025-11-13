@@ -162,10 +162,15 @@ export const onRequestPost: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[]
         .bind(groupId)
         .first<TabGroupRow>()
 
+      // Get items (with user_id verification for security)
       const { results: items } = await context.env.DB.prepare(
-        'SELECT * FROM tab_group_items WHERE group_id = ? ORDER BY position ASC'
+        `SELECT tgi.*
+         FROM tab_group_items tgi
+         JOIN tab_groups tg ON tgi.group_id = tg.id
+         WHERE tgi.group_id = ? AND tg.user_id = ?
+         ORDER BY tgi.position ASC`
       )
-        .bind(groupId)
+        .bind(groupId, userId)
         .all<TabGroupItemRow>()
 
       if (!groupRow) {

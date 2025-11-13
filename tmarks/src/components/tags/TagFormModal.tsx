@@ -36,12 +36,12 @@ export function TagFormModal({
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60" onClick={onCancel} />
-      <div className="relative w-full max-w-md card p-6 space-y-6 animate-scale-in border border-border shadow-2xl">
+      <div className="relative w-full max-w-sm card p-5 space-y-4 animate-scale-in border border-border shadow-2xl rounded-xl">
         <div>
-          <h3 className="text-lg font-semibold mb-1">{title}</h3>
+          <h3 className="text-base font-semibold mb-1">{title}</h3>
           <p className="text-xs text-muted-foreground">调整标签名称，仅影响当前标签。</p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted-foreground">标签名称</label>
           <input
             type="text"

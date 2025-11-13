@@ -1,0 +1,63 @@
+#!/usr/bin/env node
+
+/**
+ * 准备Cloudflare Pages部署
+ * 将dist内容和functions目录合并到同一层级
+ */
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const distDir = path.join(__dirname, '../dist');
+const functionsDir = path.join(__dirname, '../functions');
+const deployDir = path.join(__dirname, '../.deploy');
+
+console.log('🚀 准备Cloudflare Pages部署...');
+
+// 清理旧的部署目录
+if (fs.existsSync(deployDir)) {
+  fs.rmSync(deployDir, { recursive: true });
+  console.log('✓ 清理旧部署目录');
+}
+
+// 创建部署目录
+fs.mkdirSync(deployDir, { recursive: true });
+
+// 复制dist内容到部署目录
+console.log('📦 复制静态文件...');
+copyDir(distDir, deployDir);
+
+// 复制functions目录到部署目录
+console.log('⚡ 复制Functions...');
+const targetFunctionsDir = path.join(deployDir, 'functions');
+copyDir(functionsDir, targetFunctionsDir);
+
+console.log('✅ 部署准备完成!');
+console.log(`📁 部署目录: ${deployDir}`);
+
+/**
+ * 递归复制目录
+ */
+function copyDir(src, dest) {
+  if (!fs.existsSync(dest)) {
+    fs.mkdirSync(dest, { recursive: true });
+  }
+
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+
+    if (entry.isDirectory()) {
+      copyDir(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+

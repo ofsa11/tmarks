@@ -53,7 +53,7 @@ export interface TMarksExportData {
 
 // ============ 导入格式 ============
 
-export type ImportFormat = 'html' | 'json' | 'csv' | 'tmarks'
+export type ImportFormat = 'html' | 'json' | 'csv' | 'markdown' | 'tmarks'
 
 export interface ParsedBookmark {
   title: string
@@ -230,7 +230,7 @@ export type TagNormalizer = (tagName: string) => string
 
 // ============ 常量 ============
 
-export const SUPPORTED_IMPORT_FORMATS: ImportFormat[] = ['html', 'json', 'csv', 'tmarks']
+export const SUPPORTED_IMPORT_FORMATS: ImportFormat[] = ['html', 'json', 'csv', 'markdown', 'tmarks']
 export const SUPPORTED_EXPORT_FORMATS: ExportFormat[] = ['json', 'html', 'csv']
 
 export const DEFAULT_IMPORT_OPTIONS: ImportOptions = {

@@ -109,13 +109,17 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
       const tabGroups = hasMore ? groups.slice(0, pageSize) : groups
       const nextCursor = hasMore ? tabGroups[tabGroups.length - 1].created_at : undefined
 
-      // Get items for each group
+      // Get items for each group (with user_id verification for security)
       const groupsWithItems = await Promise.all(
         tabGroups.map(async (group) => {
           const { results: items } = await context.env.DB.prepare(
-            'SELECT * FROM tab_group_items WHERE group_id = ? ORDER BY position ASC'
+            `SELECT tgi.*
+             FROM tab_group_items tgi
+             JOIN tab_groups tg ON tgi.group_id = tg.id
+             WHERE tgi.group_id = ? AND tg.user_id = ?
+             ORDER BY tgi.position ASC`
           )
-            .bind(group.id)
+            .bind(group.id, userId)
             .all<TabGroupItemRow>()
 
           // Parse tags
@@ -215,10 +219,15 @@ export const onRequestPost: PagesFunction<Env, RouteParams, AuthContext>[] = [
         .bind(groupId)
         .first<TabGroupRow>()
 
+      // Get items (with user_id verification for security)
       const { results: items } = await context.env.DB.prepare(
-        'SELECT * FROM tab_group_items WHERE group_id = ? ORDER BY position ASC'
+        `SELECT tgi.*
+         FROM tab_group_items tgi
+         JOIN tab_groups tg ON tgi.group_id = tg.id
+         WHERE tgi.group_id = ? AND tg.user_id = ?
+         ORDER BY tgi.position ASC`
       )
-        .bind(groupId)
+        .bind(groupId, userId)
         .all<TabGroupItemRow>()
 
       return created({

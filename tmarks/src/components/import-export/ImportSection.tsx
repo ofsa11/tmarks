@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef } from 'react'
-import { Upload, FileText, Code, CheckCircle, Loader2 } from 'lucide-react'
+import { Upload, FileText, Code, CheckCircle, Loader2, FileCode } from 'lucide-react'
 import { DragDropUpload } from '../common/DragDropUpload'
 import { ProgressIndicator } from '../common/ProgressIndicator'
 import { ErrorDisplay } from '../common/ErrorDisplay'
@@ -60,6 +60,14 @@ export function ImportSection({ onImport }: ImportSectionProps) {
       description: 'JSON 格式的书签数据',
       icon: Code,
       extensions: ['.json'],
+      recommended: false
+    },
+    {
+      value: 'markdown' as ImportFormat,
+      label: 'Markdown',
+      description: 'Markdown 格式的书签列表',
+      icon: FileCode,
+      extensions: ['.md', '.markdown'],
       recommended: false
     }
   ]
