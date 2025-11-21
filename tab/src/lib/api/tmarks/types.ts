@@ -117,6 +117,10 @@ export interface CreateBookmarkResponse {
   data: {
     bookmark: TMarksBookmark;
   };
+  meta?: {
+    message?: string;
+    code?: string;
+  };
 }
 
 export interface GetBookmarkResponse {

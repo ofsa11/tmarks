@@ -6,8 +6,9 @@
 
 import type { PagesFunction } from '@cloudflare/workers-types'
 import type { Env } from '../../../../../lib/types'
-import { success, notFound, internalError } from '../../../../../lib/response'
+import { success, notFound, internalError, unauthorized } from '../../../../../lib/response'
 import { requireAuth, AuthContext } from '../../../../../middleware/auth'
+import { verifyJWT } from '../../../../../lib/jwt'
 
 interface RouteParams {
   id: string
@@ -15,13 +16,32 @@ interface RouteParams {
 }
 
 // GET /api/v1/bookmarks/:id/snapshots/:snapshotId - 获取快照
-export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
-  requireAuth,
+export const onRequestGet: PagesFunction<Env, RouteParams>[] = [
   async (context) => {
-    const userId = context.data.user_id
-    const { id: bookmarkId, snapshotId } = context.params
-
     try {
+      // 尝试从 header 或 URL 参数获取 token
+      let token = context.request.headers.get('Authorization')?.replace('Bearer ', '')
+      
+      if (!token) {
+        const url = new URL(context.request.url)
+        token = url.searchParams.get('token') || null
+      }
+
+      if (!token) {
+        return unauthorized('Missing authorization token')
+      }
+
+      // 验证 token 并获取 user_id
+      let userId: string
+      try {
+        const payload = await verifyJWT(token, context.env.JWT_SECRET)
+        userId = payload.sub
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid token'
+        return unauthorized(message)
+      }
+
+      const { id: bookmarkId, snapshotId } = context.params
       const db = context.env.DB
       const bucket = context.env.SNAPSHOTS_BUCKET
 
@@ -44,7 +64,7 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
         return notFound('Snapshot not found')
       }
 
-      // 生成预签名 URL（有效期 1 小时）
+      // 从 R2 获取快照内容
       const r2Object = await bucket.get(snapshot.r2_key as string)
 
       if (!r2Object) {
@@ -105,6 +125,16 @@ export const onRequestDelete: PagesFunction<Env, RouteParams, AuthContext>[] = [
         .bind(snapshotId)
         .run()
 
+      // 更新书签的快照计数（减1）
+      await db
+        .prepare(
+          `UPDATE bookmarks 
+           SET snapshot_count = MAX(0, snapshot_count - 1)
+           WHERE id = ?`
+        )
+        .bind(bookmarkId)
+        .run()
+
       // 如果删除的是最新快照，更新下一个为最新
       if (snapshot.is_latest) {
         const nextLatest = await db
@@ -131,7 +161,9 @@ export const onRequestDelete: PagesFunction<Env, RouteParams, AuthContext>[] = [
           await db
             .prepare(
               `UPDATE bookmarks 
-               SET has_snapshot = 0, latest_snapshot_at = NULL 
+               SET has_snapshot = 0, 
+                   latest_snapshot_at = NULL,
+                   snapshot_count = 0
                WHERE id = ?`
             )
             .bind(bookmarkId)

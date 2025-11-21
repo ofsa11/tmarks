@@ -203,10 +203,35 @@ export const onRequestGet: PagesFunction<Env, RouteParams, AuthContext>[] = [
         }
       }
 
+      // 一次性获取所有书签的快照数量
+      let snapshotCounts = new Map<string, number>()
+      
+      if (bookmarkIds.length > 0) {
+        try {
+          const placeholders = bookmarkIds.map(() => '?').join(',')
+          const { results: countResults } = await context.env.DB.prepare(
+            `SELECT bookmark_id, COUNT(*) as count
+             FROM bookmark_snapshots
+             WHERE bookmark_id IN (${placeholders})
+             GROUP BY bookmark_id`
+          )
+            .bind(...bookmarkIds)
+            .all<{ bookmark_id: string; count: number }>()
+
+          for (const row of countResults || []) {
+            snapshotCounts.set(row.bookmark_id, row.count)
+          }
+        } catch (snapshotError) {
+          // 如果快照表不存在，忽略错误（向后兼容）
+          console.warn('Failed to fetch snapshot counts (table may not exist):', snapshotError)
+        }
+      }
+
       // 组装书签和标签数据
       const bookmarksWithTags: BookmarkWithTags[] = bookmarks.map(bookmark => ({
         ...normalizeBookmark(bookmark),
         tags: tagsByBookmarkId.get(bookmark.id) || [],
+        snapshot_count: snapshotCounts.get(bookmark.id) || 0,
       }))
 
       const responseData = {
@@ -267,13 +292,43 @@ export const onRequestPost: PagesFunction<Env, RouteParams, AuthContext>[] = [
       const isPublic = body.is_public ? 1 : 0
 
       if (existing) {
-        // 如果是未删除的书签，返回错误
+        bookmarkId = existing.id
+        
+        // 如果是未删除的书签
         if (!existing.deleted_at) {
-          return badRequest('Bookmark with this URL already exists')
+          // 返回现有书签信息，让前端可以为其创建快照
+          const bookmarkRow = await context.env.DB.prepare('SELECT * FROM bookmarks WHERE id = ?')
+            .bind(bookmarkId)
+            .first<BookmarkRow>()
+
+          const { results: tags } = await context.env.DB.prepare(
+            `SELECT t.id, t.name, t.color
+             FROM tags t
+             INNER JOIN bookmark_tags bt ON t.id = bt.tag_id
+             WHERE bt.bookmark_id = ?`
+          )
+            .bind(bookmarkId)
+            .all<{ id: string; name: string; color: string | null }>()
+
+          if (!bookmarkRow) {
+            return internalError('Failed to retrieve bookmark')
+          }
+
+          const bookmark = normalizeBookmark(bookmarkRow)
+
+          return success(
+            {
+              ...bookmark,
+              tags: tags || [],
+            },
+            {
+              message: 'Bookmark already exists',
+              code: 'BOOKMARK_EXISTS',
+            }
+          )
         }
 
         // 如果是已删除的书签，恢复并更新
-        bookmarkId = existing.id
         await context.env.DB.prepare(
           `UPDATE bookmarks
            SET title = ?, description = ?, cover_image = ?, favicon = ?,

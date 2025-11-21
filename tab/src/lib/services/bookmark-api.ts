@@ -140,7 +140,7 @@ export class BookmarkAPIClient {
   /**
    * Add a new bookmark
    */
-  async addBookmark(bookmark: BookmarkInput): Promise<{ id: string }> {
+  async addBookmark(bookmark: BookmarkInput): Promise<{ id: string; isExisting?: boolean }> {
     const client = await this.ensureClient();
 
     try {
@@ -221,8 +221,18 @@ export class BookmarkAPIClient {
         );
       }
 
-      console.log('[BookmarkAPI] 书签创建成功, ID:', response.data.bookmark.id);
-      return { id: response.data.bookmark.id };
+      // Check if this is an existing bookmark
+      const isExisting = response.meta?.code === 'BOOKMARK_EXISTS';
+      if (isExisting) {
+        console.log('[BookmarkAPI] 书签已存在, ID:', response.data.bookmark.id);
+      } else {
+        console.log('[BookmarkAPI] 书签创建成功, ID:', response.data.bookmark.id);
+      }
+
+      return { 
+        id: response.data.bookmark.id,
+        isExisting 
+      };
     } catch (error: any) {
       throw new AppError(
         'BOOKMARK_SITE_ERROR' as ErrorCode,
