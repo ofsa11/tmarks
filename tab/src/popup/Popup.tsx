@@ -5,6 +5,8 @@ import { PageInfoCard } from '@/components/PageInfoCard';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { SuccessMessage } from '@/components/SuccessMessage';
+import { LoadingMessage } from '@/components/LoadingMessage';
+import { BookmarkExistsDialog } from '@/components/BookmarkExistsDialog';
 import { ModeSelector } from './ModeSelector';
 import { TabCollectionView } from './TabCollectionView';
 
@@ -21,6 +23,8 @@ export function Popup() {
     isRecommending,
     error,
     successMessage,
+    loadingMessage,
+    existingBookmark,
     config,
     loadConfig,
     loadExistingTags,
@@ -35,6 +39,11 @@ export function Popup() {
     setIncludeThumbnail,
     isPublic,
     setIsPublic,
+    createSnapshot,
+    setCreateSnapshot,
+    setExistingBookmark,
+    updateExistingBookmarkTags,
+    createSnapshotForBookmark,
     lastRecommendationSource,
     lastSaveDurationMs
   } = useAppStore();
@@ -54,11 +63,14 @@ export function Popup() {
     loadExistingTags();
   }, []);
 
-  // Check if configured
-  const isConfigured = Boolean(
+  // Check if configured (only need bookmark site API key, AI is optional)
+  const isConfigured = Boolean(config && config.bookmarkSite.apiKey);
+
+  // Check if AI is enabled and configured
+  const isAIEnabled = Boolean(
     config &&
-    config.aiConfig.apiKeys[config.aiConfig.provider] &&
-    config.bookmarkSite.apiKey
+    config.preferences.enableAI &&
+    config.aiConfig.apiKeys[config.aiConfig.provider]
   );
 
   // Initialize after config is loaded (only for bookmark mode)
@@ -75,12 +87,17 @@ export function Popup() {
         // Extract page info
         await extractPageInfo();
 
-        // Get AI recommendations
-        await recommendTags();
+        // Check AI status at init time (not from closure)
+        const shouldUseAI =
+          config.preferences.enableAI &&
+          Boolean(config.aiConfig.apiKeys[config.aiConfig.provider]);
+
+        if (shouldUseAI) {
+          await recommendTags();
+        }
 
         setInitialized(true);
       } catch (err) {
-        console.error('Initialization error:', err);
         setError(err instanceof Error ? err.message : 'Failed to initialize');
         setInitialized(true);
       }
@@ -90,6 +107,7 @@ export function Popup() {
   }, [config, viewMode]);
 
   const handleSave = async () => {
+    // AI 书签助手需要标签来组织和分类书签
     if (selectedTags.length === 0) {
       setError('请至少选择一个标签');
       return;
@@ -255,7 +273,7 @@ export function Popup() {
     <div className="relative h-[80vh] min-h-[620px] w-[380px] overflow-hidden rounded-2xl bg-white text-gray-900 shadow-2xl">
 
       <div className="relative flex h-full flex-col">
-        <div className="pointer-events-none absolute top-16 left-0 right-0 z-[9999] px-4 space-y-2">
+        <div className="pointer-events-none absolute top-16 left-0 right-0 z-30 px-4 space-y-2">
           {error && (
             <div className="pointer-events-auto">
               <ErrorMessage
@@ -265,6 +283,11 @@ export function Popup() {
               />
             </div>
           )}
+          {loadingMessage && (
+            <div className="pointer-events-auto">
+              <LoadingMessage message={loadingMessage} />
+            </div>
+          )}
           {successMessage && (
             <div className="pointer-events-auto">
               <SuccessMessage message={successMessage} />
@@ -272,7 +295,7 @@ export function Popup() {
           )}
         </div>
 
-        <header className="fixed top-0 left-0 right-0 z-40 px-3 pt-2 pb-2.5 bg-white border-b border-gray-200 shadow-sm rounded-b-2xl">
+        <header className="fixed top-0 left-0 right-0 z-20 px-3 pt-2 pb-2.5 bg-white border-b border-gray-200 shadow-sm rounded-b-2xl">
           <div className="flex items-center gap-2">
             <button
               onClick={handleBackToSelector}
@@ -283,9 +306,15 @@ export function Popup() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] text-blue-600 font-medium">
-              推荐 {recommendedTags.length}
-            </span>
+            {isAIEnabled ? (
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-[10px] text-blue-600 font-medium">
+                推荐 {recommendedTags.length}
+              </span>
+            ) : (
+              <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-amber-50 px-2 py-1 text-[10px] text-amber-600 font-medium">
+                AI 关闭
+              </span>
+            )}
             <span className="inline-flex flex-shrink-0 items-center gap-1 rounded-full bg-indigo-50 px-2 py-1 text-[10px] text-indigo-600 font-medium">
               已选 {selectedTags.length}
             </span>
@@ -328,6 +357,20 @@ export function Popup() {
             </section>
           )}
 
+          {!isAIEnabled && !isRecommending && recommendedTags.length === 0 && (
+            <section className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3.5 shadow-lg">
+              <div className="flex items-start gap-3">
+                <svg className="h-5 w-5 flex-shrink-0 text-amber-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-amber-800">AI 推荐已关闭</p>
+                  <p className="mt-1 text-xs text-amber-600">请从下方标签库中选择标签，或在设置中启用 AI 推荐。</p>
+                </div>
+              </div>
+            </section>
+          )}
+
           {selectedTags.length > 0 && (
             <section className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5 shadow-lg">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -356,38 +399,26 @@ export function Popup() {
 
           {currentPage && (
             <section className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-lg">
-              <div className="mb-2.5 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold text-gray-800">可见性</p>
-                  <p className="text-[10px] text-gray-500">选择保存后的访问权限</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="inline-flex rounded-xl border border-gray-300 bg-gray-50 p-0.5 text-xs shadow-inner">
-                    <button
-                      type="button"
-                      onClick={() => setIsPublic(false)}
-                      aria-pressed={!isPublic}
-                      className={`rounded-lg px-3 py-1 font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
-                        !isPublic
-                          ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md'
-                          : 'text-gray-600 hover:text-gray-800'
-                      }`}
-                    >
-                      隐私
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsPublic(true)}
-                      aria-pressed={isPublic}
-                      className={`rounded-lg px-3 py-1 font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 ${
-                        isPublic
-                          ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md'
-                          : 'text-gray-600 hover:text-gray-800'
-                      }`}
-                    >
-                      公开
-                    </button>
-                  </div>
+              <div className="mb-2.5 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsPublic(!isPublic)}
+                    className={`rounded-lg border px-3 py-1 text-xs font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 ${
+                      isPublic
+                        ? 'border-emerald-400 bg-emerald-50 text-emerald-700 shadow-sm focus-visible:ring-emerald-300'
+                        : 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm focus-visible:ring-blue-300'
+                    }`}
+                    title={isPublic ? '点击切换为隐私' : '点击切换为公开'}
+                  >
+                    <svg className="inline-block w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      {isPublic ? (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      ) : (
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      )}
+                    </svg>
+                    {isPublic ? '公开' : '隐私'}
+                  </button>
 
                   <button
                     type="button"
@@ -401,7 +432,23 @@ export function Popup() {
                   >
                     {includeThumbnail ? '忽略封面图' : '恢复封面图'}
                   </button>
-                </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCreateSnapshot(!createSnapshot)}
+                    className={`rounded-lg border px-3 py-1 text-xs font-medium transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-300 ${
+                      createSnapshot
+                        ? 'border-purple-400 bg-purple-50 text-purple-700 shadow-sm'
+                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                    title="保存网页快照"
+                  >
+                    <svg className="inline-block w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {createSnapshot ? '创建快照' : '不创建快照'}
+                  </button>
               </div>
               <div className="mb-2.5">
                 <div className="flex gap-2">
@@ -431,6 +478,11 @@ export function Popup() {
                 url={currentPage.url}
                 description={currentPage.description}
                 thumbnail={includeThumbnail ? currentPage.thumbnail : undefined}
+                thumbnails={includeThumbnail ? currentPage.thumbnails : undefined}
+                favicon={currentPage.favicon}
+                onThumbnailChange={(newThumbnail) => {
+                  setCurrentPage({ ...currentPage, thumbnail: newThumbnail });
+                }}
               />
             </section>
           )}
@@ -514,7 +566,7 @@ export function Popup() {
         </main>
 
         {/* Fixed Footer - Custom Tag Input */}
-        <footer className="fixed bottom-0 left-0 right-0 z-40 px-3 pt-2 pb-2.5 bg-white border-t border-gray-200 shadow-sm rounded-t-2xl">
+        <footer className="fixed bottom-0 left-0 right-0 z-20 px-3 pt-2 pb-2.5 bg-white border-t border-gray-200 shadow-sm rounded-t-2xl">
           <div className="flex items-center gap-2">
             <svg className="h-4 w-4 flex-shrink-0 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -538,6 +590,25 @@ export function Popup() {
         </footer>
 
       </div>
+
+      {/* Bookmark Exists Dialog */}
+      {existingBookmark && existingBookmark.needsDialog && (
+        <BookmarkExistsDialog
+          bookmark={existingBookmark}
+          newTags={selectedTags}
+          onUpdateTags={async (tags) => {
+            if (existingBookmark.id) {
+              await updateExistingBookmarkTags(existingBookmark.id, tags);
+            }
+          }}
+          onCreateSnapshot={async () => {
+            if (existingBookmark.id) {
+              await createSnapshotForBookmark(existingBookmark.id);
+            }
+          }}
+          onCancel={() => setExistingBookmark(null)}
+        />
+      )}
     </div>
   );
 }

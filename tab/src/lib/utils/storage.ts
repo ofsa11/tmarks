@@ -19,7 +19,8 @@ const DEFAULT_CONFIG: StorageConfig = {
     autoSync: true,
     syncInterval: 24,
     maxSuggestedTags: 5,
-    defaultVisibility: 'public'
+    defaultVisibility: 'public',
+    enableAI: true
   }
 };
 
@@ -96,7 +97,8 @@ export class StorageService {
         autoSync: config.preferences?.autoSync ?? defaults.preferences.autoSync,
         syncInterval: config.preferences?.syncInterval ?? defaults.preferences.syncInterval,
         maxSuggestedTags: config.preferences?.maxSuggestedTags ?? defaults.preferences.maxSuggestedTags,
-        defaultVisibility: config.preferences?.defaultVisibility ?? defaults.preferences.defaultVisibility
+        defaultVisibility: config.preferences?.defaultVisibility ?? defaults.preferences.defaultVisibility,
+        enableAI: config.preferences?.enableAI ?? defaults.preferences.enableAI
       }
     };
   }
@@ -138,7 +140,6 @@ export class StorageService {
       this.configCache = config;
       return config;
     } catch (error) {
-      console.error('Failed to load config:', error);
       const fallback = cloneDefaultConfig();
       this.configCache = fallback;
       return fallback;
@@ -187,7 +188,6 @@ export class StorageService {
       await chrome.storage.local.set({ [this.STORAGE_KEY]: newConfig });
       this.configCache = this.mergeWithDefaults(newConfig);
     } catch (error) {
-      console.error('Failed to save config:', error);
       throw error;
     }
   }

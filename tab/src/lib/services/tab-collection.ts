@@ -43,7 +43,6 @@ function getFaviconUrl(url: string): string {
     const urlObj = new URL(url);
     return `${EXTERNAL_SERVICES.GOOGLE_FAVICON}?domain=${urlObj.hostname}&sz=32`;
   } catch (error) {
-    console.warn(`Invalid URL for favicon: ${url}`, error);
     return '';
   }
 }
@@ -108,21 +107,69 @@ export async function collectCurrentWindowTabs(
         message: `成功收纳 ${validTabs.length} 个标签页`,
       };
     } catch (error: any) {
-      console.error('Failed to sync tab group to TMarks:', error);
+      // 详细记录错误信息
+      console.error('[TabCollection] 同步到 TMarks 失败:', {
+        message: error.message,
+        code: error.code,
+        status: error.status,
+      });
 
-      // Return success with offline flag
+      const errorCode = error?.code || '';
+      const errorStatus = error?.status || 0;
+      const errorMessage = error?.message || '';
+
+      // 判断是否是认证相关错误
+      const isAuthError =
+        errorCode === 'INVALID_API_KEY' ||
+        errorCode === 'MISSING_API_KEY' ||
+        errorCode === 'INSUFFICIENT_PERMISSIONS' ||
+        errorStatus === 401 ||
+        errorStatus === 403 ||
+        errorMessage.includes('认证') ||
+        errorMessage.includes('API Key');
+
+      // 判断是否是真正的网络错误
+      const isNetworkError =
+        (errorCode === 'NETWORK_ERROR' || errorStatus === 0) &&
+        !isAuthError &&
+        (errorMessage.includes('Network') ||
+          errorMessage.includes('网络') ||
+          errorMessage.includes('connect'));
+
+      if (isNetworkError) {
+        // 网络错误，返回离线保存
+        return {
+          success: true,
+          groupId: localGroupId.toString(),
+          offline: true,
+          message: `网络不可用，已离线保存 ${validTabs.length} 个标签页，将在网络恢复后自动同步`,
+        };
+      }
+
+      // 认证错误或其他错误，返回失败并显示具体错误信息
+      let friendlyMessage: string;
+      if (errorStatus === 401 || errorCode === 'INVALID_API_KEY' || errorCode === 'MISSING_API_KEY') {
+        friendlyMessage = '认证失败：API Key 无效或已过期，请在设置中检查您的 TMarks API Key';
+      } else if (errorStatus === 403 || errorCode === 'INSUFFICIENT_PERMISSIONS') {
+        friendlyMessage = '权限不足：您的 API Key 没有保存收纳的权限';
+      } else if (errorStatus === 429 || errorCode === 'RATE_LIMIT_EXCEEDED') {
+        friendlyMessage = '请求过于频繁，请稍后再试';
+      } else if (errorStatus >= 500) {
+        friendlyMessage = 'TMarks 服务器错误，请稍后再试';
+      } else {
+        friendlyMessage = errorMessage || '保存收纳失败';
+      }
+
       return {
-        success: true,
-        groupId: localGroupId.toString(),
-        offline: true,
-        message: `已离线保存 ${validTabs.length} 个标签页`,
+        success: false,
+        error: friendlyMessage,
       };
     }
-  } catch (error: any) {
-    console.error('Failed to collect tabs:', error);
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '收纳标签页失败';
     return {
       success: false,
-      error: error.message || '收纳标签页失败',
+      error: errorMessage,
     };
   }
 }
@@ -193,8 +240,7 @@ export async function restoreTabGroup(groupId: number, inNewWindow: boolean = tr
         chrome.tabs.create({ url, active: false });
       }
     }
-  } catch (error: any) {
-    console.error('Failed to restore tab group:', error);
+  } catch (error) {
     throw error;
   }
 }
