@@ -50,7 +50,7 @@ export function Notes() {
   }, [content]);
 
   return (
-    <div className="w-full max-w-sm glass rounded-xl p-4">
+    <div className="w-80 glass rounded-xl p-4">
       {/* 标题栏 */}
       <div className="flex items-center justify-between mb-3">
         <button

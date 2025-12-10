@@ -2,11 +2,21 @@
  * TMarks 书签同步 Hook
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { StorageService } from '@/lib/utils/storage';
 import { createTMarksClient } from '@/lib/api/tmarks';
 import { getTMarksUrls } from '@/lib/constants/urls';
 import type { TMarksBookmark, SyncState } from '../types';
+import type { Message } from '@/types';
+
+// 缓存键名
+const PINNED_BOOKMARKS_CACHE_KEY = 'tmarks_pinned_bookmarks';
+
+// 缓存数据结构
+interface CachedPinnedBookmarks {
+  bookmarks: TMarksBookmark[];
+  timestamp: number;
+}
 
 // 创建 TMarks 客户端
 async function getTMarksClient() {
@@ -36,9 +46,55 @@ export function useTMarksSync() {
     error: null,
   });
   const [pinnedBookmarks, setPinnedBookmarks] = useState<TMarksBookmark[]>([]);
+  const fetchPinnedBookmarksRef = useRef<((forceRefresh?: boolean) => Promise<any>) | null>(null);
 
-  // 获取置顶书签
-  const fetchPinnedBookmarks = useCallback(async () => {
+  // 从缓存加载置顶书签（永久缓存，除非主动刷新）
+  const loadFromCache = useCallback(async (): Promise<TMarksBookmark[] | null> => {
+    try {
+      const result = await chrome.storage.local.get(PINNED_BOOKMARKS_CACHE_KEY);
+      const cached = result[PINNED_BOOKMARKS_CACHE_KEY] as CachedPinnedBookmarks | undefined;
+
+      if (cached && cached.bookmarks) {
+        console.log('[TMarks] 从缓存加载置顶书签:', cached.bookmarks.length, '个');
+        return cached.bookmarks;
+      }
+      return null;
+    } catch (error) {
+      console.error('[TMarks] 加载缓存失败:', error);
+      return null;
+    }
+  }, []);
+
+  // 保存到缓存
+  const saveToCache = useCallback(async (bookmarks: TMarksBookmark[]) => {
+    try {
+      const cached: CachedPinnedBookmarks = {
+        bookmarks,
+        timestamp: Date.now(),
+      };
+      await chrome.storage.local.set({ [PINNED_BOOKMARKS_CACHE_KEY]: cached });
+      console.log('[TMarks] 已缓存置顶书签');
+    } catch (error) {
+      console.error('[TMarks] 保存缓存失败:', error);
+    }
+  }, []);
+
+  // 获取置顶书签（优先使用缓存）
+  const fetchPinnedBookmarks = useCallback(async (forceRefresh = false) => {
+    // 如果不是强制刷新，先尝试从缓存加载
+    if (!forceRefresh) {
+      const cached = await loadFromCache();
+      if (cached) {
+        setPinnedBookmarks(cached);
+        setSyncState({
+          isSyncing: false,
+          lastSyncAt: Date.now(),
+          error: null,
+        });
+        return cached;
+      }
+    }
+
     setSyncState((s) => ({ ...s, isSyncing: true, error: null }));
 
     try {
@@ -69,7 +125,9 @@ export function useTMarksSync() {
           favicon: b.favicon || undefined,
           is_pinned: true,
         }));
+        
         setPinnedBookmarks(bookmarks);
+        await saveToCache(bookmarks);
       }
 
       setSyncState({
@@ -89,7 +147,7 @@ export function useTMarksSync() {
       }));
       return [];
     }
-  }, []);
+  }, [loadFromCache, saveToCache]);
 
   // 搜索书签
   const searchBookmarks = useCallback(async (query: string) => {
@@ -123,11 +181,58 @@ export function useTMarksSync() {
     }
   }, []);
 
+  // 保存 fetchPinnedBookmarks 引用
+  useEffect(() => {
+    fetchPinnedBookmarksRef.current = fetchPinnedBookmarks;
+  }, [fetchPinnedBookmarks]);
+
+  // 监听来自 background 的刷新消息
+  useEffect(() => {
+    const handleMessage = (message: Message) => {
+      if (message.type === 'REFRESH_PINNED_BOOKMARKS') {
+        console.log('[TMarks] 收到刷新置顶书签消息');
+        // 强制从后端刷新
+        if (fetchPinnedBookmarksRef.current) {
+          fetchPinnedBookmarksRef.current(true);
+        }
+      }
+    };
+
+    chrome.runtime.onMessage.addListener(handleMessage);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleMessage);
+    };
+  }, []);
+
+  // 重新排序置顶书签（同步到后端）
+  const reorderPinnedBookmarks = useCallback(async (bookmarkIds: string[]) => {
+    try {
+      // 立即更新本地状态
+      const reordered = bookmarkIds
+        .map(id => pinnedBookmarks.find(b => b.id === id))
+        .filter((b): b is TMarksBookmark => b !== undefined);
+      setPinnedBookmarks(reordered);
+      await saveToCache(reordered);
+      
+      // 异步同步到后端
+      const client = await getTMarksClient();
+      await client.bookmarks.reorderPinnedBookmarks(bookmarkIds);
+      
+      console.log('[TMarks] 置顶书签顺序已更新并同步到后端');
+    } catch (error) {
+      console.error('[TMarks] 更新置顶书签顺序失败:', error);
+      // 失败时重新从后端获取
+      await fetchPinnedBookmarks(true);
+    }
+  }, [pinnedBookmarks, saveToCache, fetchPinnedBookmarks]);
+
   return {
     syncState,
     pinnedBookmarks,
     fetchPinnedBookmarks,
     searchBookmarks,
     checkApiConfigured,
+    reorderPinnedBookmarks,
   };
 }

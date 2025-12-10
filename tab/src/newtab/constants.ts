@@ -55,20 +55,18 @@ export const DEFAULT_SETTINGS: NewTabSettings = {
   showSearch: true,
   searchEngine: 'google',
   showShortcuts: true,
-  shortcutColumns: 6,
+  shortcutColumns: 8,
   shortcutStyle: 'icon',
   wallpaper: DEFAULT_WALLPAPER,
   showPinnedBookmarks: true,
   enableSearchSuggestions: true,
+  autoRefreshPinnedBookmarks: true,
+  pinnedBookmarksRefreshTime: 'morning',
   showGreeting: true,
   userName: '',
   showLunar: true,
-  showWeather: false,
-  showTodo: false,
-  showNotes: false,
-  showHotSearch: false,
-  hotSearchType: 'baidu',
   showPoetry: true,
+  hotSearchType: 'baidu',
 };
 
 // 热搜类型配置
@@ -109,10 +107,11 @@ export const FAVICON_API = 'https://www.google.com/s2/favicons?domain=';
 
 // 默认快捷方式分组
 export const DEFAULT_GROUPS: ShortcutGroup[] = [
-  { id: 'work', name: '工作', icon: 'Briefcase', position: 0 },
-  { id: 'study', name: '学习', icon: 'GraduationCap', position: 1 },
-  { id: 'entertainment', name: '娱乐', icon: 'Gamepad2', position: 2 },
-  { id: 'tools', name: '工具', icon: 'Wrench', position: 3 },
+  { id: 'home', name: '首页', icon: 'Home', position: 0 },
+  { id: 'work', name: '工作', icon: 'Briefcase', position: 1 },
+  { id: 'study', name: '学习', icon: 'GraduationCap', position: 2 },
+  { id: 'entertainment', name: '娱乐', icon: 'Gamepad2', position: 3 },
+  { id: 'tools', name: '工具', icon: 'Wrench', position: 4 },
 ];
 
 // 可用的分组图标

@@ -251,7 +251,8 @@ export type MessageType =
   | 'UPDATE_BOOKMARK_TAGS'
   | 'CAPTURE_PAGE'
   | 'CAPTURE_PAGE_V2'
-  | 'PING';
+  | 'PING'
+  | 'REFRESH_PINNED_BOOKMARKS';
 
 export interface Message<T = any> {
   type: MessageType;

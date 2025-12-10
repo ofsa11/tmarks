@@ -52,6 +52,22 @@ interface SettingsRow {
   show_hot_search: number
   show_pinned_bookmarks: number
   search_engine: string
+  use_widget_grid: number
+  updated_at: string
+}
+
+interface GridItemRow {
+  id: string
+  user_id: string
+  group_id: string | null
+  type: string
+  size: string
+  position: number
+  shortcut_url: string | null
+  shortcut_title: string | null
+  shortcut_favicon: string | null
+  config: string | null
+  created_at: string
   updated_at: string
 }
 
@@ -85,7 +101,21 @@ interface SyncRequest {
     showHotSearch?: boolean
     showPinnedBookmarks?: boolean
     searchEngine?: string
+    useWidgetGrid?: boolean
   }
+  gridItems?: Array<{
+    id?: string
+    type: string
+    size: string
+    position: number
+    group_id?: string
+    shortcut?: {
+      url: string
+      title: string
+      favicon?: string
+    }
+    config?: Record<string, unknown>
+  }>
 }
 
 // GET /api/tab/newtab/sync - 获取所有 NewTab 数据
@@ -116,6 +146,13 @@ export const onRequestGet: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[] 
         .bind(userId)
         .first<SettingsRow>()
 
+      // 获取网格组件
+      const { results: gridItems } = await context.env.DB.prepare(
+        'SELECT * FROM newtab_grid_items WHERE user_id = ? ORDER BY position ASC'
+      )
+        .bind(userId)
+        .all<GridItemRow>()
+
       return success({
         shortcuts: shortcuts || [],
         groups: groups || [],
@@ -135,8 +172,25 @@ export const onRequestGet: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[] 
               showHotSearch: settings.show_hot_search === 1,
               showPinnedBookmarks: settings.show_pinned_bookmarks === 1,
               searchEngine: settings.search_engine,
+              useWidgetGrid: settings.use_widget_grid === 1,
             }
           : null,
+        gridItems: (gridItems || []).map((item) => ({
+          id: item.id,
+          type: item.type,
+          size: item.size,
+          position: item.position,
+          groupId: item.group_id,
+          shortcut: item.shortcut_url
+            ? {
+                url: item.shortcut_url,
+                title: item.shortcut_title || '',
+                favicon: item.shortcut_favicon || undefined,
+              }
+            : undefined,
+          config: item.config ? JSON.parse(item.config) : undefined,
+          createdAt: item.created_at,
+        })),
       })
     } catch (error) {
       console.error('Get sync data error:', error)
@@ -213,8 +267,8 @@ export const onRequestPost: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[]
         await context.env.DB.prepare(
           `INSERT INTO newtab_settings (user_id, columns, style, show_title, background_type, background_value, 
            background_blur, background_dim, show_search, show_clock, show_weather, show_todo, 
-           show_hot_search, show_pinned_bookmarks, search_engine, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           show_hot_search, show_pinned_bookmarks, search_engine, use_widget_grid, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id) DO UPDATE SET
            columns = excluded.columns,
            style = excluded.style,
@@ -230,6 +284,7 @@ export const onRequestPost: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[]
            show_hot_search = excluded.show_hot_search,
            show_pinned_bookmarks = excluded.show_pinned_bookmarks,
            search_engine = excluded.search_engine,
+           use_widget_grid = excluded.use_widget_grid,
            updated_at = excluded.updated_at`
         )
           .bind(
@@ -248,9 +303,41 @@ export const onRequestPost: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[]
             s.showHotSearch ? 1 : 0,
             s.showPinnedBookmarks !== false ? 1 : 0,
             s.searchEngine ?? 'google',
+            s.useWidgetGrid ? 1 : 0,
             now
           )
           .run()
+      }
+
+      // 同步网格组件
+      if (body.gridItems && Array.isArray(body.gridItems)) {
+        await context.env.DB.prepare('DELETE FROM newtab_grid_items WHERE user_id = ?')
+          .bind(userId)
+          .run()
+
+        for (const item of body.gridItems) {
+          const id = item.id || generateUUID()
+          await context.env.DB.prepare(
+            `INSERT INTO newtab_grid_items (id, user_id, group_id, type, size, position, 
+             shortcut_url, shortcut_title, shortcut_favicon, config, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          )
+            .bind(
+              id,
+              userId,
+              item.group_id || null,
+              sanitizeString(item.type, 50),
+              sanitizeString(item.size, 10),
+              item.position,
+              item.shortcut?.url ? sanitizeString(item.shortcut.url, 2000) : null,
+              item.shortcut?.title ? sanitizeString(item.shortcut.title, 200) : null,
+              item.shortcut?.favicon ? sanitizeString(item.shortcut.favicon, 2000) : null,
+              item.config ? JSON.stringify(item.config) : null,
+              now,
+              now
+            )
+            .run()
+        }
       }
 
       return success({ message: 'Sync completed', synced_at: now })

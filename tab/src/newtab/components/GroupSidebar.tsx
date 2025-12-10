@@ -6,7 +6,6 @@ import { useState, useEffect } from 'react';
 import {
   Plus,
   X,
-  LayoutGrid,
   Folder,
   Home,
   Briefcase,
@@ -25,7 +24,6 @@ import {
   BookMarked,
   Settings,
 } from 'lucide-react';
-import { SettingsPanel } from './SettingsPanel';
 import { useNewtabStore } from '../hooks/useNewtabStore';
 import { GROUP_ICONS } from '../constants';
 import { StorageService } from '@/lib/utils/storage';
@@ -54,11 +52,14 @@ function getIconComponent(iconName: string) {
   return ICON_MAP[iconName] || Folder;
 }
 
-export function GroupSidebar() {
+interface GroupSidebarProps {
+  onOpenSettings?: () => void;
+}
+
+export function GroupSidebar({ onOpenSettings }: GroupSidebarProps) {
   const { shortcutGroups, activeGroupId, setActiveGroup, addGroup, removeGroup } =
     useNewtabStore();
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState('Folder');
   const [tmarksUrl, setTmarksUrl] = useState('');
@@ -90,35 +91,17 @@ export function GroupSidebar() {
   const handleRemoveGroup = (e: React.MouseEvent, groupId: string) => {
     e.stopPropagation();
     e.preventDefault();
-    if (confirm('删除分组后，该分组的快捷方式将移到"全部"。确定删除？')) {
+    if (confirm('删除分组后，该分组的快捷方式将移到"首页"。确定删除？')) {
       removeGroup(groupId);
     }
   };
 
   return (
-    <div className="fixed left-3 top-1/2 -translate-y-1/2 z-30 glass rounded-2xl p-2 animate-fadeIn flex flex-col gap-1">
-      {/* 全部 */}
-      <button
-        onClick={() => setActiveGroup(null)}
-        onMouseEnter={() => setHoveredGroup('all')}
-        onMouseLeave={() => setHoveredGroup(null)}
-        className={`relative w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-          activeGroupId === null
-            ? 'bg-white/25 text-white'
-            : 'text-white/60 hover:text-white hover:bg-white/15'
-        }`}
-        title="全部"
-      >
-        <LayoutGrid className="w-5 h-5" />
-        {hoveredGroup === 'all' && (
-          <div className="absolute left-full ml-2 px-2 py-1 rounded-lg bg-black/80 text-white text-xs whitespace-nowrap z-50">
-            全部
-          </div>
-        )}
-      </button>
-
+    <div className="fixed left-3 top-1/2 -translate-y-1/2 z-20 glass rounded-2xl p-2 animate-fadeIn flex flex-col gap-1">
       {/* 分组列表 */}
       {shortcutGroups.map((group) => {
+        // 首页分组不允许删除
+        const canDelete = group.id !== 'home';
         const IconComponent = getIconComponent(group.icon);
         return (
           <button
@@ -138,10 +121,12 @@ export function GroupSidebar() {
             {hoveredGroup === group.id && (
               <div className="absolute left-full ml-2 px-2 py-1 rounded-lg bg-black/80 text-white text-xs whitespace-nowrap z-50 flex items-center gap-2">
                 {group.name}
-                <X
-                  className="w-3 h-3 hover:text-red-400 cursor-pointer"
-                  onClick={(e) => handleRemoveGroup(e, group.id)}
-                />
+                {canDelete && (
+                  <X
+                    className="w-3 h-3 hover:text-red-400 cursor-pointer"
+                    onClick={(e) => handleRemoveGroup(e, group.id)}
+                  />
+                )}
               </div>
             )}
           </button>
@@ -252,7 +237,7 @@ export function GroupSidebar() {
 
       {/* 设置按钮 */}
       <button
-        onClick={() => setShowSettings(true)}
+        onClick={onOpenSettings}
         onMouseEnter={() => setHoveredGroup('settings')}
         onMouseLeave={() => setHoveredGroup(null)}
         className="relative w-10 h-10 rounded-xl flex items-center justify-center text-white/60 hover:text-white hover:bg-white/15 transition-all"
@@ -265,9 +250,6 @@ export function GroupSidebar() {
           </div>
         )}
       </button>
-
-      {/* 设置面板 */}
-      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

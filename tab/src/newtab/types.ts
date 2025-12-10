@@ -10,7 +10,66 @@ export interface ShortcutGroup {
   position: number;
 }
 
-// 快捷方式
+// 网格项尺寸
+export type GridItemSize = '1x1' | '2x1' | '1x2' | '2x2' | '2x3' | '2x4';
+
+// 网格项类型
+export type GridItemType = 
+  | 'shortcut' 
+  | 'weather' 
+  | 'clock' 
+  | 'todo' 
+  | 'notes' 
+  | 'hotsearch' 
+  | 'poetry';
+
+// 组件配置类型
+export interface WidgetConfig {
+  weather?: {
+    city?: string;
+    unit?: 'C' | 'F';
+    showForecast?: boolean;
+    autoLocation?: boolean;
+  };
+  clock?: {
+    format?: ClockFormat;
+    showDate?: boolean;
+    showSeconds?: boolean;
+    showLunar?: boolean;
+  };
+  todo?: {
+    showCompleted?: boolean;
+  };
+  notes?: {
+    content?: string;
+  };
+  hotsearch?: {
+    type?: HotSearchType;
+  };
+  poetry?: {
+    autoRefresh?: boolean;
+  };
+}
+
+// 统一网格项类型
+export interface GridItem {
+  id: string;
+  type: GridItemType;
+  size: GridItemSize;
+  position: number;
+  groupId?: string;
+  // 快捷方式数据（仅 type='shortcut' 时使用）
+  shortcut?: {
+    url: string;
+    title: string;
+    favicon?: string;
+  };
+  // 组件配置（非快捷方式时使用）
+  config?: WidgetConfig;
+  createdAt: number;
+}
+
+// 快捷方式（保持向后兼容）
 export interface Shortcut {
   id: string;
   url: string;
@@ -70,6 +129,8 @@ export interface NewTabSettings {
   // TMarks 同步
   showPinnedBookmarks: boolean;
   enableSearchSuggestions: boolean;
+  autoRefreshPinnedBookmarks: boolean; // 自动刷新置顶书签
+  pinnedBookmarksRefreshTime: 'morning' | 'evening'; // 刷新时间：早上或晚上
 
   // 问候语
   showGreeting: boolean;
@@ -78,21 +139,13 @@ export interface NewTabSettings {
   // 农历
   showLunar: boolean;
 
-  // 天气
-  showWeather: boolean;
-
-  // 待办事项
-  showTodo: boolean;
-
-  // 备忘录
-  showNotes: boolean;
-
-  // 热搜
-  showHotSearch: boolean;
-  hotSearchType: HotSearchType;
-
   // 每日诗词
   showPoetry: boolean;
+  
+  // 热搜类型（用于网格组件配置）
+  hotSearchType: HotSearchType;
+
+
 }
 
 // NewTab 存储数据
@@ -102,6 +155,26 @@ export interface NewTabStorage {
   activeGroupId: string | null; // 当前激活的分组，null 表示全部
   settings: NewTabSettings;
   tmarksSyncedAt?: number;
+  // 新版网格项数据
+  gridItems?: GridItem[];
+}
+
+// 组件尺寸配置
+export interface WidgetSizeConfig {
+  type: GridItemType;
+  defaultSize: GridItemSize;
+  allowedSizes: GridItemSize[];
+  minWidth: number; // 最小列数
+  minHeight: number; // 最小行数
+}
+
+// 组件元数据
+export interface WidgetMeta {
+  type: GridItemType;
+  name: string;
+  icon: string;
+  description: string;
+  sizeConfig: WidgetSizeConfig;
 }
 
 // 搜索结果

@@ -2,7 +2,6 @@
  * 快捷方式网格组件 - 支持拖拽排序
  */
 
-import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import {
   DndContext,
@@ -20,26 +19,19 @@ import {
 } from '@dnd-kit/sortable';
 import { useNewtabStore } from '../hooks/useNewtabStore';
 import { SortableShortcutItem } from './SortableShortcutItem';
-import { AddShortcutModal } from './AddShortcutModal';
-import { FAVICON_API } from '../constants';
 
 interface ShortcutGridProps {
   columns: 4 | 6 | 8;
   style: 'icon' | 'card';
+  onAddClick?: () => void;
+  onBatchEditClick?: () => void;
 }
 
-export function ShortcutGrid({ columns, style }: ShortcutGridProps) {
-  const { shortcuts, shortcutGroups, activeGroupId, addShortcut, reorderShortcuts, getFilteredShortcuts } =
-    useNewtabStore();
-  const [showAddModal, setShowAddModal] = useState(false);
+export function ShortcutGrid({ columns, style, onAddClick, onBatchEditClick }: ShortcutGridProps) {
+  const { shortcuts, reorderShortcuts, getFilteredShortcuts } = useNewtabStore();
 
   // 获取当前分组的快捷方式
   const filteredShortcuts = getFilteredShortcuts();
-
-  // 获取当前分组名称
-  const currentGroupName = activeGroupId
-    ? shortcutGroups.find((g) => g.id === activeGroupId)?.name
-    : undefined;
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -50,11 +42,11 @@ export function ShortcutGrid({ columns, style }: ShortcutGridProps) {
     })
   );
 
-  // 响应式网格：小屏幕自动减少列数
+  // 固定列数网格：图标大小一致，只通过位置区分
   const gridCols = {
-    4: 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4',
-    6: 'grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6',
-    8: 'grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8',
+    4: 'grid-cols-4',
+    6: 'grid-cols-6',
+    8: 'grid-cols-8',
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -69,36 +61,29 @@ export function ShortcutGrid({ columns, style }: ShortcutGridProps) {
     }
   };
 
-  const handleAddShortcut = (url: string, title: string) => {
-    const domain = new URL(url).hostname;
-    addShortcut({
-      url,
-      title,
-      favicon: `${FAVICON_API}${domain}&sz=64`,
-      groupId: activeGroupId || undefined,
-    });
-  };
-
-  // 当前分组为空时显示简洁的添加按钮
+  // 当前分组为空时显示添加按钮（居中）
   if (filteredShortcuts.length === 0) {
     return (
-      <>
-        <div className="flex justify-center">
+      <div className="flex justify-center items-center">
+        {onAddClick && (
           <button
-            onClick={() => setShowAddModal(true)}
-            className="w-16 h-16 rounded-2xl glass hover:bg-white/20 flex items-center justify-center transition-all group"
+            onClick={onAddClick}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (onBatchEditClick) {
+                // 显示右键菜单的逻辑由父组件处理
+              }
+            }}
+            className="flex flex-col items-center justify-center gap-2 cursor-pointer group"
             title="添加快捷方式"
           >
-            <Plus className="w-8 h-8 text-white/50 group-hover:text-white/80 transition-colors" />
+            <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-all duration-200">
+              <Plus className="w-6 h-6 text-white/60" />
+            </div>
+            <span className="text-xs text-white/60">添加</span>
           </button>
-        </div>
-        <AddShortcutModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          onAdd={handleAddShortcut}
-          groupName={currentGroupName}
-        />
-      </>
+        )}
+      </div>
     );
   }
 
@@ -112,40 +97,42 @@ export function ShortcutGrid({ columns, style }: ShortcutGridProps) {
         items={filteredShortcuts.map((s) => s.id)}
         strategy={rectSortingStrategy}
       >
-        <div className={`grid ${gridCols[columns]} gap-4`}>
-          {filteredShortcuts.map((shortcut) => (
-            <SortableShortcutItem
-              key={shortcut.id}
-              shortcut={shortcut}
-              style={style}
-            />
-          ))}
+        <div className="flex justify-center">
+          <div className={`grid ${gridCols[columns]} gap-4 justify-items-center`}>
+            {filteredShortcuts.map((shortcut) => (
+              <SortableShortcutItem
+                key={shortcut.id}
+                shortcut={shortcut}
+                style={style}
+                onContextMenu={onBatchEditClick ? (e) => {
+                  e.preventDefault();
+                  onBatchEditClick();
+                } : undefined}
+              />
+            ))}
 
-          {/* 添加按钮 */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className={`
-              flex flex-col items-center justify-center gap-2 p-4 rounded-xl
-              glass hover:bg-white/20 transition-all duration-200
-              cursor-pointer group
-              ${style === 'card' ? 'aspect-square' : ''}
-            `}
-          >
-            <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition-colors">
-              <Plus className="w-6 h-6 text-white/60" />
-            </div>
-            <span className="text-xs text-white/60">添加</span>
-          </button>
+            {/* 添加按钮 - 在网格内部，紧挨着快捷方式 */}
+            {onAddClick && (
+              <button
+                onClick={onAddClick}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (onBatchEditClick) {
+                    onBatchEditClick();
+                  }
+                }}
+                className="flex flex-col items-center justify-center gap-2 cursor-pointer group"
+                title="添加快捷方式 | 右键批量编辑"
+              >
+                <div className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-sm flex items-center justify-center group-hover:bg-white/20 transition-all duration-200">
+                  <Plus className="w-6 h-6 text-white/60" />
+                </div>
+                <span className="text-xs text-white/60">添加</span>
+              </button>
+            )}
+          </div>
         </div>
       </SortableContext>
-
-      {/* 添加快捷方式弹窗 */}
-      <AddShortcutModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onAdd={handleAddShortcut}
-        groupName={currentGroupName}
-      />
     </DndContext>
   );
 }

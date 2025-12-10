@@ -85,7 +85,7 @@ export function HotSearch({ type, onTypeChange }: HotSearchProps) {
   };
 
   return (
-    <div className="w-full max-w-xs glass rounded-xl p-4">
+    <div className="w-80 glass rounded-xl p-4">
       {/* 标题栏 */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">

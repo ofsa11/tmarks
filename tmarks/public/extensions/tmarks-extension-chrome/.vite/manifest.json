@@ -20,16 +20,16 @@
       "_react-DmgQkRKB.js"
     ]
   },
+  "_index-CLpTKzGv.js": {
+    "file": "assets/index-CLpTKzGv.js",
+    "name": "index"
+  },
   "_index-CQ_a-bOA.js": {
     "file": "assets/index-CQ_a-bOA.js",
     "name": "index",
     "imports": [
       "_urls-CEh1Kean.js"
     ]
-  },
-  "_index-Ch2U3yST.js": {
-    "file": "assets/index-Ch2U3yST.js",
-    "name": "index"
   },
   "_index-DHRMGLhe.js": {
     "file": "assets/index-DHRMGLhe.js",
@@ -59,12 +59,12 @@
       "_urls-CEh1Kean.js"
     ]
   },
-  "_tab-collection-DCwHjqs7.js": {
-    "file": "assets/tab-collection-DCwHjqs7.js",
+  "_tab-collection-Czy9PBbd.js": {
+    "file": "assets/tab-collection-Czy9PBbd.js",
     "name": "tab-collection",
     "imports": [
       "_index-CQ_a-bOA.js",
-      "_index-Ch2U3yST.js",
+      "_index-CLpTKzGv.js",
       "_urls-CEh1Kean.js"
     ]
   },
@@ -73,7 +73,7 @@
     "name": "urls"
   },
   "src/background/index.ts": {
-    "file": "assets/index.ts-DLZxpOYE.js",
+    "file": "assets/index.ts-B8FipFY-.js",
     "name": "index.ts",
     "src": "src/background/index.ts",
     "isEntry": true,
@@ -81,8 +81,8 @@
       "_index-CQ_a-bOA.js",
       "_index-DHRMGLhe.js",
       "_urls-CEh1Kean.js",
-      "_index-Ch2U3yST.js",
-      "_tab-collection-DCwHjqs7.js",
+      "_index-CLpTKzGv.js",
+      "_tab-collection-Czy9PBbd.js",
       "_prompts-CKcm-rRX.js"
     ]
   },
@@ -112,7 +112,7 @@
     "isDynamicEntry": true
   },
   "src/newtab/index.html": {
-    "file": "assets/newtab-TnqNQ6qi.js",
+    "file": "assets/newtab-C5W4KXeh.js",
     "name": "newtab",
     "src": "src/newtab/index.html",
     "isEntry": true,
@@ -120,14 +120,14 @@
       "_react-DmgQkRKB.js",
       "_urls-CEh1Kean.js",
       "_index-BbZ5549T.js",
-      "_index-Ch2U3yST.js"
+      "_index-CLpTKzGv.js"
     ],
     "css": [
-      "assets/newtab-oiKNQ0mK.css"
+      "assets/newtab-B_nEd0nU.css"
     ]
   },
   "src/options/index.html": {
-    "file": "assets/options-CwLUisue.js",
+    "file": "assets/options-CVcUCeXl.js",
     "name": "options",
     "src": "src/options/index.html",
     "isEntry": true,
@@ -143,11 +143,11 @@
       "_index-DHRMGLhe.js"
     ],
     "css": [
-      "assets/options-xJj5l9kq.css"
+      "assets/options-CD5hB9vL.css"
     ]
   },
   "src/popup/index.html": {
-    "file": "assets/popup-CjtavXJu.js",
+    "file": "assets/popup-CND6dlB8.js",
     "name": "popup",
     "src": "src/popup/index.html",
     "isEntry": true,
@@ -156,12 +156,12 @@
       "_SuccessMessage-pbwPRQGA.js",
       "_index-BbZ5549T.js",
       "_urls-CEh1Kean.js",
-      "_tab-collection-DCwHjqs7.js",
+      "_tab-collection-Czy9PBbd.js",
       "_index-CQ_a-bOA.js",
-      "_index-Ch2U3yST.js"
+      "_index-CLpTKzGv.js"
     ],
     "css": [
-      "assets/popup-BElKp90V.css"
+      "assets/popup-BTD1Jajw.css"
     ]
   }
 }

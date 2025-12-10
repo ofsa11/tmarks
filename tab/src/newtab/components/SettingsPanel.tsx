@@ -1,22 +1,33 @@
 /**
- * 设置面板组件
+ * 设置面板组件 - 多标签页版本
  */
 
 import { useState, useEffect } from 'react';
-import { X, Clock, Search, Grid3X3, Image, Cloud, User, CloudSun, ExternalLink } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Cloud, User, ExternalLink, Palette } from 'lucide-react';
 import { useNewtabStore } from '../hooks/useNewtabStore';
 import { SEARCH_ENGINES } from '../constants';
 import { StorageService } from '@/lib/utils/storage';
 import { getTMarksUrls } from '@/lib/constants/urls';
+import { Z_INDEX } from '../constants/z-index';
 import type { ClockFormat, SearchEngine, WallpaperType } from '../types';
 
 interface SettingsPanelProps {
   onClose: () => void;
 }
 
+type SettingsTab = 'general' | 'appearance' | 'sync';
+
+const TABS = [
+  { id: 'general' as const, label: '常规', icon: User },
+  { id: 'appearance' as const, label: '外观', icon: Palette },
+  { id: 'sync' as const, label: '同步', icon: Cloud },
+];
+
 export function SettingsPanel({ onClose }: SettingsPanelProps) {
   const { settings, updateSettings } = useNewtabStore();
   const [tmarksUrl, setTmarksUrl] = useState('');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   // 加载 TMarks 网站 URL
   useEffect(() => {
@@ -32,18 +43,21 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
     loadTMarksUrl();
   }, []);
 
-  return (
+  // 使用 Portal 直接渲染到 body，确保在全局层级
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fadeIn"
+      className="fixed inset-0 flex items-center justify-center bg-black/60 animate-fadeIn"
+      style={{ zIndex: Z_INDEX.MODAL_BACKDROP }}
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-md max-h-[80vh] rounded-2xl glass-dark animate-scaleIn flex flex-col"
+        className="relative w-full max-w-4xl h-[600px] rounded-2xl glass-modal-dark flex flex-col overflow-hidden"
+        style={{ zIndex: Z_INDEX.MODAL_CONTENT, animation: 'modalScale 0.2s ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 固定头部 */}
-        <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-3 border-b border-white/10 bg-inherit rounded-t-2xl">
-          <h2 className="text-xl font-medium text-white">设置</h2>
+        {/* 顶部标题栏 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+          <h2 className="text-lg font-medium text-white">设置</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-full hover:bg-white/10 transition-colors"
@@ -52,224 +66,268 @@ export function SettingsPanel({ onClose }: SettingsPanelProps) {
           </button>
         </div>
 
-        {/* 可滚动内容 */}
-        <div className="flex-1 overflow-y-auto p-6 pt-4">
-          {/* 问候与个性化 */}
-          <SettingSection icon={<User className="w-4 h-4" />} title="个性化">
-            <ToggleItem
-              label="显示问候语"
-              checked={settings.showGreeting}
-              onChange={(v) => updateSettings({ showGreeting: v })}
-            />
-            <TextItem
-              label="你的名字"
-              value={settings.userName}
-              placeholder="可选"
-              onChange={(v) => updateSettings({ userName: v })}
-            />
-            <ToggleItem
-              label="显示农历"
-              checked={settings.showLunar}
-              onChange={(v) => updateSettings({ showLunar: v })}
-            />
-          </SettingSection>
+        {/* 底部容器：左侧标签栏 + 右侧内容区 */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 左侧标签栏 */}
+          <div className="w-48 flex-shrink-0 border-r border-white/10 py-2">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors relative ${
+                    activeTab === tab.id
+                      ? 'text-white bg-white/10'
+                      : 'text-white/60 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                  {activeTab === tab.id && (
+                    <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-blue-500" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
 
-          {/* 时钟设置 */}
-          <SettingSection icon={<Clock className="w-4 h-4" />} title="时钟">
-            <ToggleItem
-              label="显示时钟"
-              checked={settings.showClock}
-              onChange={(v) => updateSettings({ showClock: v })}
-            />
-            <ToggleItem
-              label="显示日期"
-              checked={settings.showDate}
-              onChange={(v) => updateSettings({ showDate: v })}
-            />
-            <ToggleItem
-              label="显示秒数"
-              checked={settings.showSeconds}
-              onChange={(v) => updateSettings({ showSeconds: v })}
-            />
-            <SelectItem
-              label="时间格式"
-              value={settings.clockFormat}
-              options={[
-                { value: '24h', label: '24 小时制' },
-                { value: '12h', label: '12 小时制' },
-              ]}
-              onChange={(v) => updateSettings({ clockFormat: v as ClockFormat })}
-            />
-          </SettingSection>
+          {/* 右侧内容区 */}
+          <div className="flex-1 overflow-y-auto p-6">
+          {activeTab === 'general' && (
+            <div className="space-y-6">
+              {/* 个性化 */}
+              <SettingSection title="个性化">
+                <ToggleItem
+                  label="显示问候语"
+                  checked={settings.showGreeting}
+                  onChange={(v) => updateSettings({ showGreeting: v })}
+                />
+                <TextItem
+                  label="你的名字"
+                  value={settings.userName}
+                  placeholder="可选"
+                  onChange={(v) => updateSettings({ userName: v })}
+                />
+              </SettingSection>
 
-          {/* 搜索设置 */}
-          <SettingSection icon={<Search className="w-4 h-4" />} title="搜索">
-            <ToggleItem
-              label="显示搜索框"
-              checked={settings.showSearch}
-              onChange={(v) => updateSettings({ showSearch: v })}
-            />
-            <SelectItem
-              label="搜索引擎"
-              value={settings.searchEngine}
-              options={SEARCH_ENGINES.map((e) => ({ value: e.id, label: e.name }))}
-              onChange={(v) => updateSettings({ searchEngine: v as SearchEngine })}
-            />
-          </SettingSection>
+              {/* 时钟 */}
+              <SettingSection title="时钟">
+                <ToggleItem
+                  label="显示时钟"
+                  checked={settings.showClock}
+                  onChange={(v) => updateSettings({ showClock: v })}
+                />
+                {settings.showClock && (
+                  <>
+                    <ToggleItem
+                      label="显示日期"
+                      checked={settings.showDate}
+                      onChange={(v) => updateSettings({ showDate: v })}
+                    />
+                    <ToggleItem
+                      label="显示秒数"
+                      checked={settings.showSeconds}
+                      onChange={(v) => updateSettings({ showSeconds: v })}
+                    />
+                    <ToggleItem
+                      label="显示农历"
+                      checked={settings.showLunar}
+                      onChange={(v) => updateSettings({ showLunar: v })}
+                    />
+                    <SelectItem
+                      label="时间格式"
+                      value={settings.clockFormat}
+                      options={[
+                        { value: '24h', label: '24 小时制' },
+                        { value: '12h', label: '12 小时制' },
+                      ]}
+                      onChange={(v) => updateSettings({ clockFormat: v as ClockFormat })}
+                    />
+                  </>
+                )}
+              </SettingSection>
 
-          {/* 快捷方式设置 */}
-          <SettingSection icon={<Grid3X3 className="w-4 h-4" />} title="快捷方式">
-            <ToggleItem
-              label="显示快捷方式"
-              checked={settings.showShortcuts}
-              onChange={(v) => updateSettings({ showShortcuts: v })}
-            />
-            <SelectItem
-              label="每行数量"
-              value={String(settings.shortcutColumns)}
-              options={[
-                { value: '4', label: '4 个' },
-                { value: '6', label: '6 个' },
-                { value: '8', label: '8 个' },
-              ]}
-              onChange={(v) => updateSettings({ shortcutColumns: Number(v) as 4 | 6 | 8 })}
-            />
-          </SettingSection>
+              {/* 诗词 */}
+              <SettingSection title="诗词">
+                <ToggleItem
+                  label="显示每日诗词"
+                  checked={settings.showPoetry}
+                  onChange={(v) => updateSettings({ showPoetry: v })}
+                />
+              </SettingSection>
 
-          {/* TMarks 同步设置 */}
-          <SettingSection icon={<Cloud className="w-4 h-4" />} title="TMarks 同步">
-            <ToggleItem
-              label="显示置顶书签"
-              checked={settings.showPinnedBookmarks}
-              onChange={(v) => updateSettings({ showPinnedBookmarks: v })}
-            />
-            <ToggleItem
-              label="搜索建议"
-              checked={settings.enableSearchSuggestions}
-              onChange={(v) => updateSettings({ enableSearchSuggestions: v })}
-            />
-            {tmarksUrl && (
-              <a
-                href={tmarksUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between p-2 mt-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-              >
-                <span className="text-sm text-white/70">打开 TMarks 网站</span>
-                <ExternalLink className="w-4 h-4 text-white/50" />
-              </a>
-            )}
-            <div className="text-xs text-white/40 mt-1">
-              在扩展设置中配置 API Key
+              {/* 搜索 */}
+              <SettingSection title="搜索">
+                <ToggleItem
+                  label="显示搜索框"
+                  checked={settings.showSearch}
+                  onChange={(v) => updateSettings({ showSearch: v })}
+                />
+                <SelectItem
+                  label="搜索引擎"
+                  value={settings.searchEngine}
+                  options={SEARCH_ENGINES.map((e) => ({ value: e.id, label: e.name }))}
+                  onChange={(v) => updateSettings({ searchEngine: v as SearchEngine })}
+                />
+              </SettingSection>
             </div>
-          </SettingSection>
+          )}
 
-          {/* 天气与待办 */}
-          <SettingSection icon={<CloudSun className="w-4 h-4" />} title="小组件">
-            <ToggleItem
-              label="显示天气"
-              checked={settings.showWeather}
-              onChange={(v) => updateSettings({ showWeather: v })}
-            />
-            <ToggleItem
-              label="显示待办事项"
-              checked={settings.showTodo}
-              onChange={(v) => updateSettings({ showTodo: v })}
-            />
-            <ToggleItem
-              label="显示备忘录"
-              checked={settings.showNotes}
-              onChange={(v) => updateSettings({ showNotes: v })}
-            />
-            <ToggleItem
-              label="显示热搜榜"
-              checked={settings.showHotSearch}
-              onChange={(v) => updateSettings({ showHotSearch: v })}
-            />
-            <ToggleItem
-              label="显示每日诗词"
-              checked={settings.showPoetry}
-              onChange={(v) => updateSettings({ showPoetry: v })}
-            />
-          </SettingSection>
+          {activeTab === 'appearance' && (
+            <div className="space-y-6">
+              {/* 快捷方式 */}
+              <SettingSection title="快捷方式">
+                <ToggleItem
+                  label="显示快捷方式"
+                  checked={settings.showShortcuts}
+                  onChange={(v) => updateSettings({ showShortcuts: v })}
+                />
+                <SelectItem
+                  label="每行数量"
+                  value={String(settings.shortcutColumns)}
+                  options={[
+                    { value: '4', label: '4 个' },
+                    { value: '6', label: '6 个' },
+                    { value: '8', label: '8 个' },
+                  ]}
+                  onChange={(v) => updateSettings({ shortcutColumns: Number(v) as 4 | 6 | 8 })}
+                />
+              </SettingSection>
 
-          {/* 壁纸设置 */}
-          <SettingSection icon={<Image className="w-4 h-4" />} title="壁纸">
-            <SelectItem
-              label="壁纸类型"
-              value={settings.wallpaper.type}
-              options={[
-                { value: 'color', label: '纯色' },
-                { value: 'bing', label: 'Bing 每日壁纸' },
-                { value: 'unsplash', label: '随机风景' },
-                { value: 'image', label: '自定义图片' },
-              ]}
-              onChange={(v) =>
-                updateSettings({
-                  wallpaper: { ...settings.wallpaper, type: v as WallpaperType },
-                })
-              }
-            />
-            {settings.wallpaper.type === 'color' && (
-              <ColorItem
-                label="背景颜色"
-                value={settings.wallpaper.value}
-                onChange={(v) =>
-                  updateSettings({ wallpaper: { ...settings.wallpaper, value: v } })
-                }
-              />
-            )}
-            {settings.wallpaper.type === 'image' && (
-              <TextItem
-                label="图片 URL"
-                value={settings.wallpaper.value}
-                placeholder="https://..."
-                onChange={(v) =>
-                  updateSettings({ wallpaper: { ...settings.wallpaper, value: v } })
-                }
-              />
-            )}
-            <RangeItem
-              label="模糊"
-              value={settings.wallpaper.blur}
-              min={0}
-              max={20}
-              onChange={(v) =>
-                updateSettings({ wallpaper: { ...settings.wallpaper, blur: v } })
-              }
-            />
-            <RangeItem
-              label="亮度"
-              value={settings.wallpaper.brightness}
-              min={20}
-              max={100}
-              onChange={(v) =>
-                updateSettings({ wallpaper: { ...settings.wallpaper, brightness: v } })
-              }
-            />
-          </SettingSection>
+              {/* 壁纸 */}
+              <SettingSection title="壁纸">
+                <SelectItem
+                  label="壁纸类型"
+                  value={settings.wallpaper.type}
+                  options={[
+                    { value: 'color', label: '纯色' },
+                    { value: 'bing', label: 'Bing 每日壁纸' },
+                    { value: 'unsplash', label: '随机风景' },
+                    { value: 'image', label: '自定义图片' },
+                  ]}
+                  onChange={(v) =>
+                    updateSettings({
+                      wallpaper: { ...settings.wallpaper, type: v as WallpaperType },
+                    })
+                  }
+                />
+                {settings.wallpaper.type === 'color' && (
+                  <ColorItem
+                    label="背景颜色"
+                    value={settings.wallpaper.value}
+                    onChange={(v) =>
+                      updateSettings({ wallpaper: { ...settings.wallpaper, value: v } })
+                    }
+                  />
+                )}
+                {settings.wallpaper.type === 'image' && (
+                  <TextItem
+                    label="图片 URL"
+                    value={settings.wallpaper.value}
+                    placeholder="https://..."
+                    onChange={(v) =>
+                      updateSettings({ wallpaper: { ...settings.wallpaper, value: v } })
+                    }
+                  />
+                )}
+                <RangeItem
+                  label="模糊"
+                  value={settings.wallpaper.blur}
+                  min={0}
+                  max={20}
+                  onChange={(v) =>
+                    updateSettings({ wallpaper: { ...settings.wallpaper, blur: v } })
+                  }
+                />
+                <RangeItem
+                  label="亮度"
+                  value={settings.wallpaper.brightness}
+                  min={20}
+                  max={100}
+                  onChange={(v) =>
+                    updateSettings({ wallpaper: { ...settings.wallpaper, brightness: v } })
+                  }
+                />
+              </SettingSection>
+            </div>
+          )}
+
+
+
+          {activeTab === 'sync' && (
+            <div className="space-y-6">
+              <SettingSection title="TMarks 同步">
+                <ToggleItem
+                  label="显示置顶书签"
+                  checked={settings.showPinnedBookmarks}
+                  onChange={(v) => updateSettings({ showPinnedBookmarks: v })}
+                />
+                <ToggleItem
+                  label="搜索建议"
+                  checked={settings.enableSearchSuggestions}
+                  onChange={(v) => updateSettings({ enableSearchSuggestions: v })}
+                />
+                {tmarksUrl && (
+                  <a
+                    href={tmarksUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-3 mt-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                  >
+                    <span className="text-sm text-white/70">打开 TMarks 网站</span>
+                    <ExternalLink className="w-4 h-4 text-white/50" />
+                  </a>
+                )}
+                <div className="text-xs text-white/40 mt-2">
+                  在扩展设置中配置 API Key 以启用同步功能
+                </div>
+              </SettingSection>
+
+              <SettingSection title="自动刷新">
+                <ToggleItem
+                  label="定时刷新置顶书签"
+                  checked={settings.autoRefreshPinnedBookmarks}
+                  onChange={(v) => updateSettings({ autoRefreshPinnedBookmarks: v })}
+                />
+                {settings.autoRefreshPinnedBookmarks && (
+                  <>
+                    <SelectItem
+                      label="刷新时间"
+                      value={settings.pinnedBookmarksRefreshTime}
+                      options={[
+                        { value: 'morning', label: '早上 8:00' },
+                        { value: 'evening', label: '晚上 22:00' },
+                      ]}
+                      onChange={(v) => updateSettings({ pinnedBookmarksRefreshTime: v as 'morning' | 'evening' })}
+                    />
+                    <div className="text-xs text-white/40 -mt-1 ml-1">
+                      每天自动更新置顶书签缓存，保持数据最新
+                    </div>
+                  </>
+                )}
+              </SettingSection>
+            </div>
+          )}
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
 // 设置分组
 function SettingSection({
-  icon,
   title,
   children,
 }: {
-  icon: React.ReactNode;
   title: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-6">
-      <div className="flex items-center gap-2 mb-3 text-white/60">
-        {icon}
-        <span className="text-sm font-medium">{title}</span>
-      </div>
+    <div className="bg-white/5 rounded-xl p-4">
+      <h3 className="text-sm font-medium text-white/80 mb-4">{title}</h3>
       <div className="space-y-3">{children}</div>
     </div>
   );
@@ -414,3 +472,5 @@ function RangeItem({
     </div>
   );
 }
+
+

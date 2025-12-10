@@ -30,6 +30,18 @@ body {
   to { opacity: 1; transform: scale(1); }
 }
 
+/* 居中弹窗专用动画 - 保持 translate 居中的同时进行缩放 */
+@keyframes modalScaleIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* 纯缩放动画 - 不改变透明度，避免与外层 fadeIn 冲突 */
+@keyframes modalScale {
+  from { transform: scale(0.95); }
+  to { transform: scale(1); }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.3s ease-out;
 }
@@ -38,17 +50,48 @@ body {
   animation: scaleIn 0.2s ease-out;
 }
 
+.animate-modalScaleIn {
+  animation: modalScaleIn 0.2s ease-out;
+}
+
 /* 毛玻璃效果 */
 .glass {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.1);
+  will-change: transform;
 }
 
 .glass-dark {
-  background: rgba(0, 0, 0, 0.3);
+  background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(255, 255, 255, 0.05);
+  will-change: transform;
+}
+
+/* 弹窗专用样式 - 无模糊效果 */
+.glass-modal {
+  background: rgba(30, 30, 40, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.glass-modal-dark {
+  background: rgba(20, 20, 30, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.2s ease;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 /* 隐藏滚动条 */

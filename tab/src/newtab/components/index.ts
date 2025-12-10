@@ -5,6 +5,7 @@
 export { Clock } from './Clock';
 export { SearchBar } from './SearchBar';
 export { ShortcutGrid } from './ShortcutGrid';
+export { WidgetGrid } from './WidgetGrid';
 export { ShortcutItem } from './ShortcutItem';
 export { SortableShortcutItem } from './SortableShortcutItem';
 export { Wallpaper } from './Wallpaper';

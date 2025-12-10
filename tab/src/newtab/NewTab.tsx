@@ -2,7 +2,8 @@
  * NewTab 主组件
  */
 
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
+import { Plus, Edit } from 'lucide-react';
 import { useNewtabStore } from './hooks/useNewtabStore';
 import { Clock } from './components/Clock';
 import { SearchBar } from './components/SearchBar';
@@ -11,15 +12,20 @@ import { Wallpaper } from './components/Wallpaper';
 import { DockBar } from './components/DockBar';
 import { Greeting } from './components/Greeting';
 import { LunarDate } from './components/LunarDate';
-import { Weather } from './components/Weather';
-import { TodoList } from './components/TodoList';
-import { Notes } from './components/Notes';
 import { Poetry } from './components/Poetry';
-import { HotSearch } from './components/HotSearch';
 import { GroupSidebar } from './components/GroupSidebar';
+import { SettingsPanel } from './components/SettingsPanel';
+import { AddShortcutModal } from './components/AddShortcutModal';
+import { BatchEditModal } from './components/BatchEditModal';
+import { ShortcutContextMenu } from './components/ShortcutContextMenu';
+import { FAVICON_API } from './constants';
 
 export function NewTab() {
-  const { settings, isLoading, loadData, updateSettings, shortcutGroups, activeGroupId, setActiveGroup } = useNewtabStore();
+  const { settings, isLoading, loadData, updateSettings, shortcutGroups, activeGroupId, setActiveGroup, addShortcut } = useNewtabStore();
+  const [showSettings, setShowSettings] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showBatchEdit, setShowBatchEdit] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const wheelTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
   const isWheelLocked = useRef(false);
 
@@ -92,12 +98,7 @@ export function NewTab() {
       {/* 壁纸背景 */}
       <Wallpaper config={settings.wallpaper} />
 
-      {/* 顶部栏 - 天气 */}
-      {settings.showWeather && (
-        <div className="absolute top-4 right-4 z-20 animate-fadeIn">
-          <Weather />
-        </div>
-      )}
+
 
       {/* 主内容 - 参考 mtab 布局，内容偏上 */}
       <div className="relative z-10 w-full h-full flex flex-col items-center px-4 pt-[12vh] pb-8 overflow-y-auto">
@@ -145,49 +146,80 @@ export function NewTab() {
           </div>
         )}
 
-        {/* 小组件横向排列 - 参考 mtab 布局 */}
-        {(settings.showHotSearch || settings.showTodo || settings.showNotes) && (
-          <div className="w-full max-w-5xl mb-8 animate-fadeIn px-4">
-            <div className="flex flex-wrap justify-center gap-4">
-              {settings.showHotSearch && (
-                <div className="flex-shrink-0">
-                  <HotSearch
-                    type={settings.hotSearchType}
-                    onTypeChange={(type) => updateSettings({ hotSearchType: type })}
-                  />
-                </div>
-              )}
-              {settings.showTodo && (
-                <div className="flex-shrink-0">
-                  <TodoList />
-                </div>
-              )}
-              {settings.showNotes && (
-                <div className="flex-shrink-0">
-                  <Notes />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 快捷方式 */}
+        {/* 快捷方式网格 + 添加按钮 */}
         {settings.showShortcuts && (
           <div className="w-full max-w-5xl animate-fadeIn px-4">
-            <ShortcutGrid
-              columns={settings.shortcutColumns}
-              style={settings.shortcutStyle}
-            />
+            <div className="flex items-start gap-4">
+              <ShortcutGrid 
+                columns={settings.shortcutColumns} 
+                style={settings.shortcutStyle}
+                onAddClick={() => setShowAddModal(true)}
+                onBatchEditClick={() => setShowBatchEdit(true)}
+              />
+            </div>
           </div>
         )}
 
       </div>
 
-      {/* 左侧分组侧边栏（包含设置按钮） */}
-      <GroupSidebar />
+      {/* 左侧分组侧边栏 */}
+      <GroupSidebar onOpenSettings={() => setShowSettings(true)} />
 
       {/* 底部 Dock 栏 - 置顶书签 */}
       {settings.showPinnedBookmarks && <DockBar />}
+
+      {/* 设置面板 - 在顶层渲染避免被父容器限制 */}
+      {showSettings && <SettingsPanel onClose={() => setShowSettings(false)} />}
+
+      {/* 添加快捷方式弹窗 */}
+      {showAddModal && (
+        <AddShortcutModal
+          isOpen={showAddModal}
+          onClose={() => setShowAddModal(false)}
+          onAdd={(url, title) => {
+            const domain = new URL(url).hostname;
+            addShortcut({
+              url,
+              title,
+              favicon: `${FAVICON_API}${domain}&sz=64`,
+              groupId: activeGroupId || undefined,
+            });
+          }}
+          groupName={
+            activeGroupId
+              ? shortcutGroups.find((g) => g.id === activeGroupId)?.name
+              : undefined
+          }
+        />
+      )}
+
+      {/* 批量编辑弹窗 */}
+      <BatchEditModal
+        isOpen={showBatchEdit}
+        onClose={() => setShowBatchEdit(false)}
+      />
+
+      {/* 右键菜单 */}
+      {contextMenu && (
+        <ShortcutContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={[
+            {
+              label: '添加快捷方式',
+              icon: <Plus className="w-4 h-4" />,
+              onClick: () => setShowAddModal(true),
+            },
+            {
+              label: '批量编辑',
+              icon: <Edit className="w-4 h-4" />,
+              onClick: () => setShowBatchEdit(true),
+              divider: true,
+            },
+          ]}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
