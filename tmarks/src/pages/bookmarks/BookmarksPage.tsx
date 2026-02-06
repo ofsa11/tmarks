@@ -13,7 +13,7 @@ import { useTags } from '@/hooks/useTags'
 import type { Bookmark, BookmarkQueryParams } from '@/lib/types'
 import type { SortOption } from '@/components/common/SortSelector'
 
-const SORT_OPTIONS: SortOption[] = ['created', 'updated', 'popular']
+const SORT_OPTIONS: SortOption[] = ['created', 'updated', 'pinned', 'popular']
 const VIEW_MODES = ['list', 'card', 'minimal', 'title'] as const
 
 export function BookmarksPage() {
