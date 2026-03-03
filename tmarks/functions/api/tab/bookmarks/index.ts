@@ -15,8 +15,8 @@ import { invalidatePublicShareCache } from '../../shared/cache'
 import { uploadCoverImageToR2 } from '../../../lib/image-upload'
 
 interface CreateBookmarkRequest {
-  title: string
-  url: string
+  title?: string
+  url?: string
   description?: string
   cover_image?: string
   favicon?: string
@@ -24,6 +24,17 @@ interface CreateBookmarkRequest {
   tags?: string[]     // 新版：标签名称数组（推荐）
   is_pinned?: boolean
   is_public?: boolean
+  bookmarks?: Array<{  // 批量创建
+    title: string
+    url: string
+    description?: string
+    cover_image?: string
+    favicon?: string
+    tags?: string[]
+    is_pinned?: boolean
+    is_archived?: boolean
+    is_public?: boolean
+  }>
 }
 
 // GET /api/bookmarks - 获取书签列表
@@ -186,7 +197,7 @@ export const onRequestPost: PagesFunction<Env, RouteParams, ApiKeyAuthContext>[]
     const userId = context.data.user_id
 
     try {
-      const body = (await context.request.json()) as any
+      const body = (await context.request.json()) as CreateBookmarkRequest
 
       // 检测是否为批量创建请求
       if (body.bookmarks && Array.isArray(body.bookmarks)) {
