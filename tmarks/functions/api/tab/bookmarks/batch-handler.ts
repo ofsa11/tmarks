@@ -44,10 +44,23 @@ export async function batchCreateBookmarks(
   userId: string,
   bookmarks: BatchCreateBookmarkItem[]
 ): Promise<Response> {
+  console.log('[Batch Handler] ===== BATCH HANDLER CALLED =====')
   console.log('[Batch Handler] Starting batch create')
   console.log('[Batch Handler] User ID:', userId)
   console.log('[Batch Handler] Bookmarks count:', bookmarks?.length)
+  console.log('[Batch Handler] First bookmark:', JSON.stringify(bookmarks?.[0]))
   
+  // 测试：立即返回成功响应
+  return success({
+    success: 0,
+    failed: 0,
+    skipped: 0,
+    total: bookmarks?.length || 0,
+    created_bookmarks: [],
+    test: 'BATCH_HANDLER_REACHED'
+  })
+  
+  /* 暂时注释掉实际逻辑
   try {
     if (!bookmarks || bookmarks.length === 0) {
       console.log('[Batch Handler] Empty bookmarks array')
@@ -60,6 +73,7 @@ export async function batchCreateBookmarks(
     }
 
     console.log('[Batch Handler] Starting processing...')
+  */
 
     if (bookmarks.length > 100) {
       console.log('[Batch Handler] Too many bookmarks:', bookmarks.length)
